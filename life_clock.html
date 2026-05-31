@@ -193,6 +193,15 @@ canvas{width:100%;display:block}
 .chart-box{background:var(--sur);border:.5px solid var(--bdr);border-radius:12px;padding:14px 14px 10px}
 .chart-ttl{font-family:'Noto Serif KR',serif;font-size:11px;color:var(--mut2);margin-bottom:12px}
 canvas{width:100%;display:block}
+
+.tbl-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ytbl{width:100%;border-collapse:collapse;font-size:11px;font-family:'DM Mono',monospace}
+.ytbl th{font-family:'Noto Serif KR',serif;font-size:10px;color:var(--mut2);padding:6px 8px;border-bottom:.5px solid var(--bdr2);text-align:right;white-space:nowrap}
+.ytbl th:first-child{text-align:left}
+.ytbl td{padding:7px 8px;border-bottom:.5px solid var(--bdr);text-align:right;white-space:nowrap}
+.ytbl td:first-child{text-align:left;color:var(--mut2);font-family:'Noto Serif KR',serif}
+.ytbl tr.isa-row{background:rgba(109,184,124,.05)}
+.ytbl tr:last-child td{border-bottom:none}
 </style>
 </head>
 <body>
@@ -327,8 +336,9 @@ canvas{width:100%;display:block}
         <div class="inp-box"><div class="inp-lbl">연 배당률<span class="hint">커버드콜 ETF</span></div><div class="inp-wrap"><input class="inp-num sim-inp" id="i_yield" type="number" value="14.4" step=".1"/><span class="inp-unit">%</span></div></div>
         <div class="inp-box"><div class="inp-lbl">NAV 연 증감률<span class="hint">원금 변동 예상치</span></div><div class="inp-wrap"><input class="inp-num sim-inp" id="i_nav" type="number" value="0" step=".5"/><span class="inp-unit">%</span></div></div>
       </div>
+      <div class="inp-box"><div class="inp-lbl">만기 사이클<span class="hint">3년 또는 5년</span></div><div class="inp-wrap"><input class="inp-num sim-inp" id="i_cycle" type="number" value="5" min="3" max="5"/><span class="inp-unit">년</span></div></div>
       <div class="auto-row">
-        <span class="auto-k">월 분배금 (자동계산, 비과세)</span>
+        <span class="auto-k">월 분배금 (자동계산, 내부 비과세)</span>
         <span class="auto-v" id="i_dist_display" style="color:var(--grn)">—</span>
       </div>
     </div>
@@ -467,6 +477,12 @@ canvas{width:100%;display:block}
     <div class="chart-box">
       <div class="chart-ttl" id="chartTtl">총 자산 추이 (30년)</div>
       <canvas id="dLine" height="220"></canvas>
+    </div>
+
+    <!-- 연도별 테이블 -->
+    <div class="cf-block">
+      <div class="cf-ttl">연도별 자산 추이</div>
+      <div id="yearTable"></div>
     </div>
 
     <!-- 건보료 -->
@@ -612,77 +628,70 @@ function runSim(){
   const curAge=32;
   const gP=gv('g_p'), gYield=gv('g_yield')/100, gNav=gv('g_nav')/100, gFinInc=gv('g_fin_inc');
   const iCur=gv('i_cur'), iContrib=gv('i_contrib'), iYield=gv('i_yield')/100, iNav=gv('i_nav')/100;
-  const pExcl=gv('p_excl'), pGain=gv('p_gain'), pYield=gv('p_yield')/100, pNav=gv('p_nav')/100, pAge=gv('p_age'), pTax=gv('p_tax')/100;
-  // ISA와 연금은 yield=배당, nav=원금증감으로 분리 (총수익 = yield + nav)
-  const iRet=iYield+iNav, pRet=pYield+pNav;
+  const pExcl=gv('p_excl'), pGain=gv('p_gain'), pYield=gv('p_yield')/100, pNav=gv('p_nav')/100;
+  const pAge=gv('p_age'), pTax=gv('p_tax')/100;
   const extraM=gv('extra_m'), extraYrs=gv('extra_yrs');
   const exp=gv('exp'), nps=gv('nps'), npsAge=gv('nps_age');
   const house=gv('house'), car=gv('car'), carYr=gv('car_yr');
+  const isaCycle=gv('i_cycle')||5; // ISA 만기 사이클 (기본 5년)
 
-  // 월 분배금 자동계산
+  // 현재 월 분배금
   const gDist=Math.round(gP*gYield/12);
   const iDist=Math.round(iCur*iYield/12);
   const pExclDist=Math.round(pExcl*pYield/12);
   const pGainDist=Math.round(pGain*pYield/12);
   const pDistTotal=pExclDist+pGainDist;
+  const totalDivM=gDist+iDist+pDistTotal;
+
   const el_g=document.getElementById('g_dist_display');if(el_g)el_g.textContent=fmtN(gDist)+'만원';
-  const el_i=document.getElementById('i_dist_display');if(el_i)el_i.textContent=fmtN(iDist)+'만원 (내부 비과세)';
+  const el_i=document.getElementById('i_dist_display');if(el_i)el_i.textContent=fmtN(iDist)+'만원 (내부 재투자)';
   const el_p=document.getElementById('p_dist_display');if(el_p)el_p.textContent=fmtN(pDistTotal)+'만원';
 
   // 현재 총 자산
   const totalNow=gP+iCur+pExcl+pGain;
   document.getElementById('totalAssetNow').textContent=fmtW(totalNow)+'원';
-  const totalDivM=gDist+iDist+pDistTotal;
   document.getElementById('totalAssetBreak').innerHTML=
     `<span style="color:var(--acc)">일반 ${fmtM(gP)}</span> + <span style="color:var(--grn)">ISA ${fmtM(iCur)}</span> + <span style="color:var(--blu)">연금 ${fmtM(pExcl+pGain)}</span>`
-    +`<div style="margin-top:8px;font-size:12px;color:var(--acc)">월 분배금 합계 <strong>${fmtN(totalDivM)}만원</strong> · 실수령 <strong style="color:var(--grn)">${fmtN(gDist)}만원</strong></div>`
-    +`<div style="font-size:10px;color:var(--mut2);margin-top:3px;font-family:'Noto Serif KR',serif">잉여금 전액 일반계좌 재투자 · ISA 분배금 내부 복리</div>`;
+    +`<div style="margin-top:6px;font-family:'Noto Serif KR',serif;font-size:11px;color:var(--acc)">월 분배금 <strong>${fmtN(gDist)}만원</strong> (일반) + ISA/연금 내부 복리</div>`;
 
   // 건보료 (금융소득 기준)
   const npsNow=curAge>=npsAge?nps:0;
-  const annInc=gFinInc+npsNow*12;
-  const ins=calcIns(annInc,house,car,carYr);
-  const insM=ins.total; // 만원
+  const ins=calcIns(gFinInc+npsNow*12, house, car, carYr);
+  const insM=ins.total;
 
-  // 수입/지출
-  // ISA는 내부 재투자 → 생활비 수입 제외
-  // 부족분은 연금저축 과세제외금액(원금)에서만 인출 (세금 0%)
-  const livingInc=gDist+npsNow; // 실제 생활에 쓸 수 있는 수입
-  const pWithdrawM=Math.max(0,exp+insM-livingInc); // 연금저축 과세제외 인출
-  const totalInc=livingInc+pWithdrawM;
-  const surplus=totalInc-exp-insM; // 잉여금 → 재투자
-  const surplusReinvest=surplus; // 잉여금 전액 재투자 가정
+  // 현재 현금흐름
+  const livingInc=gDist+npsNow;
+  const pWithdrawM=Math.max(0,exp+insM-livingInc);
+  const surplus=livingInc+pWithdrawM-exp-insM;
 
   // 건보료 경고
   const warnEl=document.getElementById('insWarn');
   warnEl.innerHTML=gFinInc>1000
-    ?`<div class="warn-box">⚠️ 금융소득 연 ${fmtN(gFinInc)}만원 → 1,000만원 초과<br>건보료 소득분 반영됩니다. 1,000만원 이하로 조정 권장.</div>`
-    :`<div class="ok-box">✓ 금융소득 연 ${fmtN(gFinInc)}만원 → 1,000만원 이하<br>건보료에 금융소득 미반영 (재산·차량분만 부과)</div>`;
+    ?`<div class="warn-box">⚠️ 금융소득 연 ${fmtN(gFinInc)}만원 → 1,000만원 초과<br>건보료 소득분 반영됩니다.</div>`
+    :`<div class="ok-box">✓ 금융소득 연 ${fmtN(gFinInc)}만원 → 1,000만원 이하 유지<br>건보료에 금융소득 미반영</div>`;
 
   // 요약 카드
   document.getElementById('summaryCards').innerHTML=`
     <div class="res-card"><div class="res-val" style="color:var(--acc)">${fmtM(totalNow)}원</div><div class="res-lbl">현재 총 자산</div></div>
     <div class="res-card"><div class="res-val" style="color:${surplus>=0?'var(--grn)':'var(--red)'}">${surplus>=0?'+':''}${fmtM(Math.round(surplus))}원</div><div class="res-lbl">월 순 잉여금</div></div>
-    <div class="res-card"><div class="res-val" style="color:var(--acc);font-size:18px">${fmtN(gDist)}만원</div><div class="res-lbl">① 일반계좌 실수령<br><span style="font-size:9px;color:var(--mut2)">ISA ${fmtN(iDist)}원 내부재투자 / 연금 ${fmtN(pDistTotal)}원</span></div></div>
+    <div class="res-card"><div class="res-val" style="color:var(--acc);font-size:18px">${fmtN(gDist)}만원</div><div class="res-lbl">일반계좌 월 분배금<br><span style="font-size:9px;color:var(--mut2)">잉여 ${fmtN(Math.max(0,Math.round(surplus)))}만원 재투자</span></div></div>
     <div class="res-card"><div class="res-val" style="color:var(--mut2);font-size:18px">${fmtM(Math.round(insM*10)/10)}원</div><div class="res-lbl">건보료 (월)</div></div>
   `;
 
   // 현금흐름
   document.getElementById('cfRows').innerHTML=`
     <div class="cf-row"><span class="cf-k">① 일반계좌 분배금 (세금 0%)</span><span class="cf-v" style="color:var(--acc)">+${fmtM(gDist)}원</span></div>
-    <div class="cf-row"><span class="cf-k">② ISA 분배금 (내부 재투자)</span><span class="cf-v" style="color:var(--grn);opacity:.7">${fmtM(iDist)}원 → ISA 내 복리</span></div>
-    <div class="cf-row"><span class="cf-k">③ 연금저축 과세제외 인출 (세금 0%)</span><span class="cf-v" style="color:var(--blu)">${pWithdrawM>0?'+'+fmtM(Math.round(pWithdrawM))+'원':'인출 불필요'}</span></div>
     <div class="cf-row"><span class="cf-k">③ 연금저축 과세제외 인출 (세금 0%)</span><span class="cf-v" style="color:var(--blu)">${pWithdrawM>0?'+'+fmtM(Math.round(pWithdrawM))+'원':'인출 불필요'}</span></div>
     <div class="cf-row"><span class="cf-k">국민연금</span><span class="cf-v">${npsNow>0?'+'+npsNow+'만원':'수령 전'}</span></div>
     <div class="cf-row"><span class="cf-k">월 생활비</span><span class="cf-v" style="color:var(--red)">-${fmtM(exp)}원</span></div>
     <div class="cf-row"><span class="cf-k">건강보험료</span><span class="cf-v" style="color:var(--red)">-${fmtM(Math.round(insM*10)/10)}원</span></div>
-    <div class="cf-row" style="border:none"><span class="cf-k">② ISA 연 납입 (저축)</span><span class="cf-v" style="color:var(--mut2)">-${fmtM(Math.round(iContrib/12))}원/월</span></div>
+    <div class="cf-row" style="border:none;opacity:.6"><span class="cf-k">② ISA 분배금+수익 → 내부 복리</span><span class="cf-v" style="color:var(--grn)">${fmtM(iDist)}원/월 재투자</span></div>
   `;
   const surplusEl=document.getElementById('cfSurplus');
   surplusEl.textContent=(surplus>=0?'+':'')+fmtM(Math.round(surplus))+'원 / 월';
   surplusEl.style.color=surplus>=0?'var(--grn)':'var(--red)';
 
-  // 생활비 세부 breakdown
+  // 생활비 세부
   const expItems=[
     {id:'exp_food',label:'식비'},{id:'exp_mgmt',label:'관리비'},{id:'exp_loan',label:'대출상환'},
     {id:'exp_tel',label:'통신비'},{id:'exp_car',label:'교통/유류'},{id:'exp_leisure',label:'여가/여행'},
@@ -696,45 +705,68 @@ function runSim(){
       .map(it=>`<div class="cf-row"><span class="cf-k">${it.label}</span><span class="cf-v" style="color:var(--red)">-${fmtN(gv(it.id))}만원</span></div>`).join('');
   }
 
-  // 30년 자산 추이 시뮬레이션
+  // ===== 연도별 자산 시뮬레이션 =====
   const years=30;
-  const res=[];
-  let assetG=gP, assetI=iCur, assetPE=pExcl, assetPG=pGain;
-  for(let y=0;y<=years;y++){
-    const age=curAge+y;
-    const npsY=age>=npsAge?nps:0;
-    const addM=y<extraYrs?extraM:0;
+  const rows=[];
+  let aG=gP, aI=iCur, aPE=pExcl, aPG=pGain;
+  let iYearAccum=0; // ISA 현재 사이클 누적 (납입+수익)
 
-    // ① 일반계좌:
-    //   - NAV 증감 (배당률과 별도)
-    //   - 배당은 생활비에 쓰고 잉여분은 원금 재투자
-    //   - 추가납입
-    const gDistY=assetG*gYield;          // 연 분배금
-    const npsY2=age>=npsAge?nps*12:0;
+  for(let y=1;y<=years;y++){
+    const age=curAge+y;
+    const npsY=age>=npsAge?nps*12:0;
+    const addY=(y<=extraYrs?extraM:0)*12;
     const insY=insM*12;
     const expY=exp*12;
-    const pWdY=Math.max(0,expY+insY-(gDistY+npsY2)); // 연금저축 인출 필요분
-    const surplusY=gDistY+npsY2-expY-insY;           // 잉여금
-    const reinvestY=Math.max(0,surplusY);             // 잉여금 → 일반계좌 재투자
-    assetG=assetG*(1+gNav)+reinvestY+addM*12;
 
-    // ② ISA: 연 납입 + 배당 내부 복리 (yield + nav 전체 복리)
-    assetI=assetI*(1+iRet)+iContrib;
-    // 5년마다 연금저축 전환
-    if(y>0&&y%5===0){assetPE+=assetI;assetI=0;}
+    // ① 일반계좌
+    const gDistY=aG*gYield;            // 연 분배금
+    const cashIn=gDistY+npsY;
+    const cashOut=expY+insY;
+    const surplusY=cashIn-cashOut;
+    const reinvestY=Math.max(0,surplusY); // 잉여 → 일반계좌 재투자
+    aG=aG*(1+gNav)+reinvestY+addY;
 
-    // ③ 연금저축 과세제외: 부족분 인출, 나머지 복리
-    assetPE=Math.max(0,assetPE*(1+pYield+pNav)-pWdY);
-    // 수익분: 복리 (55세 이후 연금 수령)
-    assetPG=assetPG*(1+pRet);
-    if(age>=pAge) assetPG=Math.max(0,assetPG-Math.min(expY*0.2,assetPG));
+    // ② ISA: 납입 + 전체 내부 복리 (분배금+NAV)
+    // 연초 잔액에 iRet(=iYield+iNav) 복리, 연납입 추가
+    const iRet=iYield+iNav;
+    aI=aI*(1+iRet)+iContrib;
 
-    res.push({age,g:assetG,i:assetI,pE:assetPE,pG:assetPG,total:assetG+assetI+assetPE+assetPG});
+    // ISA 만기 → 연금저축 전환
+    let isaTransfer=0;
+    if(y%isaCycle===0){
+      isaTransfer=aI;
+      aPE+=aI; // 전액 과세제외원금으로 편입
+      aI=0;   // ISA 재가입 (0부터 재적립)
+    }
+
+    // ③ 연금저축
+    // 부족분 계산 (일반계좌로 못 채운 경우)
+    const pWdY=Math.max(0,cashOut-cashIn); // 연 부족분
+    // 과세제외원금: 복리 후 부족분 인출
+    aPE=Math.max(0,aPE*(1+pYield+pNav)-pWdY);
+    // 수익분: 복리 (55세+ 연금수령)
+    aPG=aPG*(1+pRet);
+    if(age>=pAge){
+      // 수익분에서 연금수령 (생활비 보완, 최대 20%)
+      const penWithdraw=Math.min(expY*0.2, aPG*0.1);
+      aPG=Math.max(0,aPG-penWithdraw);
+    }
+
+    const total=aG+aI+aPE+aPG;
+    rows.push({
+      y, age, aG:Math.round(aG), aI:Math.round(aI),
+      aPE:Math.round(aPE), aPG:Math.round(aPG), total:Math.round(total),
+      gDistY:Math.round(gDistY), surplusY:Math.round(surplusY),
+      isaTransfer:Math.round(isaTransfer)
+    });
   }
 
-  const finalTotal=res[res.length-1].total;
-  document.getElementById('chartTtl').textContent=`총 자산 추이 (30년) → ${fmtW(finalTotal)}원`;
-  drawChart(res);
+  const finalTotal=rows[rows.length-1].total;
+  document.getElementById('chartTtl').textContent=`총 자산 추이 (30년 후 → ${fmtW(finalTotal)}원)`;
+  drawChart(rows);
+
+  // 연도별 테이블
+  renderTable(rows, isaCycle, curAge, npsAge);
 
   // 건보료 UI
   document.getElementById('insInc').textContent=fmtWon(ins.incP);
@@ -743,13 +775,41 @@ function runSim(){
   document.getElementById('insLtc').textContent=fmtWon(ins.ltc);
   document.getElementById('insTot').textContent=fmtWon(ins.total)+' / 월';
   const carAge2=new Date().getFullYear()-carYr;
-  let note='※ 금융소득 1,000만원 이하 → 소득분 건보료 미부과\n※ 재산 과표 = 시세 × 42% − 기본공제 5,000만원\n※ 점수당 208.4원, 장기요양 12.95% (2024년 기준)';
-  if(car>=4000&&carAge2>=9)note+='\n※ 차량 차령 9년 이상 → 미부과';
+  let note='※ 금융소득 1,000만원 이하 → 소득분 건보료 미부과\n※ 재산 과표 = 시세×42%−5,000만원\n※ 점수당 208.4원, 장기요양 12.95% (2024년 기준)';
+  if(car>=4000&&carAge2>=9)note+='\n※ 차량 차령 9년↑ → 미부과';
   else if(car<4000)note+='\n※ 차량가액 4,000만원 미만 → 미부과';
   document.getElementById('insNote').textContent=note;
 }
 
-function drawChart(res){
+function renderTable(rows, isaCycle, curAge, npsAge){
+  const el=document.getElementById('yearTable');
+  if(!el)return;
+  let html=`<div class="tbl-scroll"><table class="ytbl">
+    <thead><tr>
+      <th>나이</th><th>일반계좌</th><th>ISA</th><th>연금(원금)</th><th>연금(수익)</th><th>총 자산</th><th>비고</th>
+    </tr></thead><tbody>`;
+  rows.forEach(r=>{
+    const isISAYear=r.y%isaCycle===0;
+    const isNPS=r.age===npsAge;
+    const note=[];
+    if(isISAYear)note.push(`ISA→연금 ${fmtM(r.isaTransfer)}`);
+    if(isNPS)note.push('국민연금 개시');
+    if(r.age===gv('p_age'))note.push('연금수령 시작');
+    html+=`<tr class="${isISAYear?'isa-row':''}">
+      <td>${r.age}세</td>
+      <td style="color:var(--acc)">${fmtM(r.aG)}</td>
+      <td style="color:var(--grn)">${fmtM(r.aI)}</td>
+      <td style="color:var(--blu)">${fmtM(r.aPE)}</td>
+      <td style="color:#a98fd4">${fmtM(r.aPG)}</td>
+      <td style="color:var(--txt);font-weight:500">${fmtM(r.total)}</td>
+      <td style="color:var(--grn);font-size:10px">${note.join(' · ')||''}</td>
+    </tr>`;
+  });
+  html+='</tbody></table></div>';
+  el.innerHTML=html;
+}
+
+function drawChart(rows){
   const cv=document.getElementById('dLine');
   if(!cv)return;
   const dpr=window.devicePixelRatio||1;
@@ -759,12 +819,10 @@ function drawChart(res){
   const ctx=cv.getContext('2d');ctx.scale(dpr,dpr);ctx.clearRect(0,0,W,H);
   const pad={t:12,r:12,b:30,l:52};
   const cw=W-pad.l-pad.r,ch=H-pad.t-pad.b;
-  const maxV=Math.max(...res.map(r=>r.total))*1.05||1;
-  const tx=i=>pad.l+(i/(res.length-1))*cw;
+  const maxV=Math.max(...rows.map(r=>r.total))*1.05||1;
+  const tx=i=>pad.l+(i/(rows.length-1))*cw;
   const ty=v=>pad.t+ch-v/maxV*ch;
   const fmtY=v=>v>=100000000?(v/100000000).toFixed(0)+'억':v>=10000?(v/10000).toFixed(0)+'억':'';
-
-  // 격자
   [0,.25,.5,.75,1].forEach(f=>{
     const y=pad.t+ch*f;
     ctx.strokeStyle='rgba(255,255,255,0.05)';ctx.lineWidth=.5;
@@ -772,51 +830,39 @@ function drawChart(res){
     ctx.fillStyle='rgba(138,135,131,.6)';ctx.font='8.5px DM Mono';ctx.textAlign='right';
     ctx.fillText(fmtY(maxV*(1-f)),pad.l-4,y+3);
   });
-  res.forEach((r,i)=>{
-    if(r.age%5===0||r.age===32){
+  rows.forEach((r,i)=>{
+    if(r.age%5===0){
       ctx.fillStyle='rgba(138,135,131,.55)';ctx.font='8.5px DM Mono';ctx.textAlign='center';
       ctx.fillText(r.age+'세',tx(i),H-pad.b+14);
     }
   });
-
-  // 스택 영역
   const layers=[
-    {key:'pG',color:'rgba(122,158,196,.55)'},
-    {key:'pE',color:'rgba(122,158,196,.25)'},
-    {key:'i', color:'rgba(109,184,124,.4)'},
-    {key:'g', color:'rgba(196,168,120,.35)'},
+    {key:'aPG',color:'rgba(169,143,212,.5)'},
+    {key:'aPE',color:'rgba(122,158,196,.3)'},
+    {key:'aI', color:'rgba(109,184,124,.4)'},
+    {key:'aG', color:'rgba(196,168,120,.4)'},
   ];
   for(let li=layers.length-1;li>=0;li--){
-    const top=res.map(r=>{let s=0;for(let k=0;k<=li;k++)s+=r[layers[k].key];return s;});
-    const bot=li===layers.length-1?res.map(()=>0):res.map((r,i)=>top[i]-r[layers[li].key]);
+    const top=rows.map(r=>{let s=0;for(let k=0;k<=li;k++)s+=r[layers[k].key];return s;});
+    const bot=li===layers.length-1?rows.map(()=>0):rows.map((r,i)=>top[i]-r[layers[li].key]);
     ctx.beginPath();
     top.forEach((_,i)=>i===0?ctx.moveTo(tx(i),ty(top[i])):ctx.lineTo(tx(i),ty(top[i])));
     [...top.keys()].reverse().forEach(i=>ctx.lineTo(tx(i),ty(bot[i])));
     ctx.closePath();ctx.fillStyle=layers[li].color;ctx.fill();
   }
-
-  // 총합 라인
   ctx.beginPath();ctx.strokeStyle='#c4a878';ctx.lineWidth=2;ctx.lineJoin='round';
-  res.forEach((r,i)=>i===0?ctx.moveTo(tx(i),ty(r.total)):ctx.lineTo(tx(i),ty(r.total)));
+  rows.forEach((r,i)=>i===0?ctx.moveTo(tx(i),ty(r.total)):ctx.lineTo(tx(i),ty(r.total)));
   ctx.stroke();
-
-  // 범례
-  const legend=[
-    {c:'rgba(196,168,120,.8)',l:'일반'},
-    {c:'rgba(109,184,124,.7)',l:'ISA'},
-    {c:'rgba(122,158,196,.5)',l:'연금원금'},
-    {c:'rgba(122,158,196,.9)',l:'연금수익'}
-  ];
+  const legend=[{c:'rgba(196,168,120,.9)',l:'일반'},{c:'rgba(109,184,124,.8)',l:'ISA'},{c:'rgba(122,158,196,.7)',l:'연금원금'},{c:'rgba(169,143,212,.8)',l:'연금수익'}];
   let lx=pad.l;
   legend.forEach(lg=>{
     ctx.fillStyle=lg.c;ctx.fillRect(lx,4,7,7);
-    ctx.fillStyle='rgba(138,135,131,.75)';ctx.font='8px DM Mono';ctx.textAlign='left';
+    ctx.fillStyle='rgba(138,135,131,.8)';ctx.font='8px DM Mono';ctx.textAlign='left';
     ctx.fillText(lg.l,lx+9,11);lx+=ctx.measureText(lg.l).width+24;
   });
 }
 
-// 저장/불러오기
-const SIM_INPUTS=['g_p','g_yield','g_nav','g_fin_inc','i_cur','i_contrib','i_yield','i_nav','p_excl','p_gain','p_yield','p_nav','p_age','p_tax','extra_m','extra_yrs','exp','nps','nps_age','house','car','car_yr','exp_food','exp_mgmt','exp_loan','exp_tel','exp_car','exp_leisure','exp_med','exp_etc'];
+const SIM_INPUTS=['g_p','g_yield','g_nav','g_fin_inc','i_cur','i_contrib','i_yield','i_nav','i_cycle','p_excl','p_gain','p_yield','p_nav','p_age','p_tax','extra_m','extra_yrs','exp','nps','nps_age','house','car','car_yr','exp_food','exp_mgmt','exp_loan','exp_tel','exp_car','exp_leisure','exp_med','exp_etc'];
 const SIM_KEY='life_sim_v2';
 function saveInputs(){
   const data={};
@@ -829,12 +875,9 @@ function saveInputs(){
 function loadInputs(){
   try{
     const data=JSON.parse(localStorage.getItem(SIM_KEY)||'{}');
-    SIM_INPUTS.forEach(id=>{
-      if(data[id]!==undefined){const el=document.getElementById(id);if(el)el.value=data[id];}
-    });
+    SIM_INPUTS.forEach(id=>{if(data[id]!==undefined){const el=document.getElementById(id);if(el)el.value=data[id];}});
   }catch(e){}
 }
-
 loadInputs();
 runSim();
 </script>
