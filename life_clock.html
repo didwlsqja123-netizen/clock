@@ -154,9 +154,10 @@ canvas{width:100%;display:block}
 .inp-num{background:transparent;border:none;border-bottom:.5px solid var(--bdr);color:var(--txt);font-family:'DM Mono',monospace;font-size:15px;outline:none;width:100%;padding:2px 0;-webkit-appearance:none}
 .inp-num:focus{border-bottom-color:var(--acc)}
 .inp-unit{font-family:'Noto Serif KR',serif;font-size:10px;color:var(--mut2);white-space:nowrap}
-.auto-row{background:rgba(196,168,120,.06);border:.5px solid rgba(196,168,120,.15);border-radius:8px;padding:9px 12px;display:flex;justify-content:space-between;align-items:center}
-.auto-k{font-family:'Noto Serif KR',serif;font-size:11px;color:var(--mut2)}
-.auto-v{font-size:14px;font-weight:400}
+/* 수정된 코드: 좁은 화면에서 텍스트 자동 줄바꿈 및 단어 끊어짐 방지 적용 */
+.auto-row{background:rgba(196,168,120,.06);border:.5px solid rgba(196,168,120,.15);border-radius:8px;padding:10px 12px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:8px}
+.auto-k{font-family:'Noto Serif KR',serif;font-size:11px;color:var(--mut2);word-break:keep-all;line-height:1.4}
+.auto-v{font-size:13.5px;font-weight:400;text-align:right;word-break:keep-all;line-height:1.4;margin-left:auto}
 
 .tbl-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ytbl{width:100%;border-collapse:collapse;font-size:11px;font-family:'DM Mono',monospace}
