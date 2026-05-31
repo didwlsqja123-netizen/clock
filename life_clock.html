@@ -85,7 +85,16 @@ html,body{width:100%;min-height:100vh;background:var(--bg);color:var(--txt);font
 .stg-body{padding:13px 15px;background:var(--sur);display:flex;flex-direction:column;gap:10px}
 .inp-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .inp-row.w1{grid-template-columns:1fr}
-.inp-box{background:var(--sur2);border-radius:8px;padding:10px 12px;border:.5px solid var(--bdr)}
+/* 수정된 코드: 입력 박스 내부 정렬 (입력칸을 항상 맨 아래로 맞춤) */
+.inp-box {
+  background: var(--sur2);
+  border-radius: 8px;
+  padding: 10px 12px;
+  border: .5px solid var(--bdr);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between; /* 이 속성이 숫자 입력칸을 바닥으로 딱 맞춰줍니다 */
+}
 .inp-lbl{font-family:'Noto Serif KR',serif;font-size:10px;color:var(--mut2);margin-bottom:6px;line-height:1.4}
 .inp-lbl .hint{display:block;font-size:9px;color:var(--mut);margin-top:1px}
 .inp-wrap{display:flex;align-items:baseline;gap:4px}
@@ -147,17 +156,50 @@ canvas{width:100%;display:block}
 
 /* INP COMPONENTS */
 .inp-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.inp-box{background:var(--sur2);border-radius:8px;padding:10px 12px;border:.5px solid var(--bdr)}
+/* 수정된 코드: 입력 박스 내부 정렬 (입력칸을 항상 맨 아래로 맞춤) */
+.inp-box {
+  background: var(--sur2);
+  border-radius: 8px;
+  padding: 10px 12px;
+  border: .5px solid var(--bdr);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between; /* 이 속성이 숫자 입력칸을 바닥으로 딱 맞춰줍니다 */
+}
 .inp-lbl{font-family:'Noto Serif KR',serif;font-size:10px;color:var(--mut2);margin-bottom:6px;line-height:1.4}
 .inp-lbl .hint{display:block;font-size:9px;color:var(--mut);margin-top:1px}
 .inp-wrap{display:flex;align-items:baseline;gap:4px}
 .inp-num{background:transparent;border:none;border-bottom:.5px solid var(--bdr);color:var(--txt);font-family:'DM Mono',monospace;font-size:15px;outline:none;width:100%;padding:2px 0;-webkit-appearance:none}
 .inp-num:focus{border-bottom-color:var(--acc)}
 .inp-unit{font-family:'Noto Serif KR',serif;font-size:10px;color:var(--mut2);white-space:nowrap}
-/* 수정된 코드: 좁은 화면에서 텍스트 자동 줄바꿈 및 단어 끊어짐 방지 적용 */
-.auto-row{background:rgba(196,168,120,.06);border:.5px solid rgba(196,168,120,.15);border-radius:8px;padding:10px 12px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:8px}
-.auto-k{font-family:'Noto Serif KR',serif;font-size:11px;color:var(--mut2);word-break:keep-all;line-height:1.4}
-.auto-v{font-size:13.5px;font-weight:400;text-align:right;word-break:keep-all;line-height:1.4;margin-left:auto}
+/* 수정된 코드: 모바일 최적화 (위아래 2줄 배치) */
+.auto-row {
+  background: rgba(196, 168, 120, .06);
+  border: .5px solid rgba(196, 168, 120, .15);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column; /* 가로 배치를 세로 배치로 강제 변경 */
+  justify-content: center;
+  gap: 6px; /* 위아래 텍스트 사이의 간격 */
+}
+
+.auto-k {
+  font-family: 'Noto Serif KR', serif;
+  font-size: 11px;
+  color: var(--mut2);
+  width: 100%; /* 제목이 윗줄 전체를 쓰도록 설정 */
+  text-align: left;
+}
+
+.auto-v {
+  font-size: 14px;
+  font-weight: 400;
+  width: 100%; /* 결괏값이 아랫줄 전체를 쓰도록 설정 */
+  text-align: right; /* 우측 정렬 유지 */
+  word-break: keep-all; /* 단어 중간에 끊어지는 현상 완벽 방지 */
+  line-height: 1.4;
+}
 
 .tbl-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .ytbl{width:100%;border-collapse:collapse;font-size:11px;font-family:'DM Mono',monospace}
