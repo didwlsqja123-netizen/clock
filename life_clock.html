@@ -610,8 +610,8 @@ function toggleExp(){
 // HELPERS
 const gv=id=>parseFloat(document.getElementById(id).value)||0;
 const fmtN=n=>Math.round(n).toLocaleString('ko-KR');
-const fmtW=n=>{const a=Math.abs(n),s=n<0?'-':'';if(a>=100000000)return s+(a/100000000).toFixed(2)+'억';if(a>=10000)return s+(a/10000).toFixed(1)+'억';return s+fmtN(a)+'만';};
-const fmtM=n=>{const a=Math.abs(n),s=n<0?'-':'';if(a>=10000)return s+(a/10000).toFixed(1)+'억';return s+fmtN(a)+'만';};
+const fmtW=n=>{const a=Math.abs(n),s=n<0?'-':'';if(a>=100000000)return s+parseFloat((a/100000000).toFixed(3))+'억';if(a>=10000)return s+parseFloat((a/10000).toFixed(3))+'억';return s+fmtN(a)+'만';};
+const fmtM=n=>{const a=Math.abs(n),s=n<0?'-':'';if(a>=10000)return s+parseFloat((a/10000).toFixed(3))+'억';return s+fmtN(a)+'만';};
 const fmtWon=v=>Math.round(v*10000).toLocaleString('ko-KR')+'원';
 
 function propSc(t){
@@ -747,6 +747,7 @@ function runSim(){
   const years=30;
   const rows=[];
   let aG=gP, aI=iCur, aPE=pExcl, aPG=pGain;
+  let iCyclePrin = iCur; // 💡 추가: ISA 사이클별 원금 추적용
 
   for(let y=1;y<=years;y++){
     const age=curAge+y;
@@ -773,13 +774,21 @@ function runSim(){
     }
     aG=aG*(1+gNav)+reinvestY+addY;
 
-    // ② ISA: 납입 + 전체 내부 복리
-    aI=aI*(1+iRet)+iContrib;
-    let isaTransfer=0;
-    if(y%isaCycle===0){
-      isaTransfer=aI;
-      aPE+=aI; // 과세제외원금으로 편입
-      aI=0;   
+    // ② ISA: 납입 + 전체 내부 복리 (9.9% 분리과세 적용)
+    aI = aI * (1 + iRet) + iContrib;
+    iCyclePrin += iContrib; // 매년 납입원금 누적
+    let isaTransfer = 0;
+    
+    if(y % isaCycle === 0) {
+      const iProfit = Math.max(0, aI - iCyclePrin); // 만기 수익금 산출
+      const taxableProfit = Math.max(0, iProfit - 200); // 200만원 비과세 공제
+      const iTax = taxableProfit * 0.099; // 초과분 9.9% 세금
+      
+      isaTransfer = aI - iTax; // 세후 실수령액 (최종 이전액)
+      aPE += isaTransfer; // 과세제외원금으로 100% 편입
+      
+      aI = 0;   
+      iCyclePrin = 0; // 다음 사이클을 위해 원금 초기화
     }
 
     // ③ 연금저축
