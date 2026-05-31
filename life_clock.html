@@ -323,7 +323,14 @@ canvas{width:100%;display:block}
         <div class="inp-box"><div class="inp-lbl">현재 잔액</div><div class="inp-wrap"><input class="inp-num sim-inp" id="i_cur" type="number" value="0"/><span class="inp-unit">만원</span></div></div>
         <div class="inp-box"><div class="inp-lbl">연 납입액<span class="hint">한도 2,000만원</span></div><div class="inp-wrap"><input class="inp-num sim-inp" id="i_contrib" type="number" value="2000"/><span class="inp-unit">만원</span></div></div>
       </div>
-      <div class="inp-box"><div class="inp-lbl">내부 연 수익률</div><div class="inp-wrap"><input class="inp-num sim-inp" id="i_ret" type="number" value="15" step=".5"/><span class="inp-unit">%</span></div></div>
+      <div class="inp-row">
+        <div class="inp-box"><div class="inp-lbl">연 배당률<span class="hint">커버드콜 ETF</span></div><div class="inp-wrap"><input class="inp-num sim-inp" id="i_yield" type="number" value="14.4" step=".1"/><span class="inp-unit">%</span></div></div>
+        <div class="inp-box"><div class="inp-lbl">NAV 연 증감률<span class="hint">원금 변동 예상치</span></div><div class="inp-wrap"><input class="inp-num sim-inp" id="i_nav" type="number" value="0" step=".5"/><span class="inp-unit">%</span></div></div>
+      </div>
+      <div class="auto-row">
+        <span class="auto-k">월 분배금 (자동계산, 비과세)</span>
+        <span class="auto-v" id="i_dist_display" style="color:var(--grn)">—</span>
+      </div>
     </div>
   </div>
 
@@ -339,8 +346,16 @@ canvas{width:100%;display:block}
         <div class="inp-box"><div class="inp-lbl">수익분 잔액<span class="hint">55세+ 연금수령</span></div><div class="inp-wrap"><input class="inp-num sim-inp" id="p_gain" type="number" value="0"/><span class="inp-unit">만원</span></div></div>
       </div>
       <div class="inp-row">
-        <div class="inp-box"><div class="inp-lbl">내부 운용수익률</div><div class="inp-wrap"><input class="inp-num sim-inp" id="p_ret" type="number" value="15" step=".5"/><span class="inp-unit">%</span></div></div>
-        <div class="inp-box"><div class="inp-lbl">연금수령 시작 나이</div><div class="inp-wrap"><input class="inp-num sim-inp" id="p_age" type="number" value="60"/><span class="inp-unit">세</span></div></div>
+        <div class="inp-box"><div class="inp-lbl">연 배당률<span class="hint">커버드콜 ETF</span></div><div class="inp-wrap"><input class="inp-num sim-inp" id="p_yield" type="number" value="14.4" step=".1"/><span class="inp-unit">%</span></div></div>
+        <div class="inp-box"><div class="inp-lbl">NAV 연 증감률</div><div class="inp-wrap"><input class="inp-num sim-inp" id="p_nav" type="number" value="0" step=".5"/><span class="inp-unit">%</span></div></div>
+      </div>
+      <div class="auto-row">
+        <span class="auto-k">월 분배금 (자동계산)</span>
+        <span class="auto-v" id="p_dist_display" style="color:var(--blu)">—</span>
+      </div>
+      <div class="inp-row">
+        <div class="inp-box"><div class="inp-lbl">연금수령 시작 나이<span class="hint">만 55세 이상</span></div><div class="inp-wrap"><input class="inp-num sim-inp" id="p_age" type="number" value="60"/><span class="inp-unit">세</span></div></div>
+        <div class="inp-box"><div class="inp-lbl">연금소득세율<span class="hint">3.3~5.5%</span></div><div class="inp-wrap"><input class="inp-num sim-inp" id="p_tax" type="number" value="5.5" step=".1"/><span class="inp-unit">%</span></div></div>
       </div>
     </div>
   </div>
@@ -596,22 +611,31 @@ function updateExpSum(){
 function runSim(){
   const curAge=32;
   const gP=gv('g_p'), gYield=gv('g_yield')/100, gNav=gv('g_nav')/100, gFinInc=gv('g_fin_inc');
-  const iCur=gv('i_cur'), iContrib=gv('i_contrib'), iRet=gv('i_ret')/100;
-  const pExcl=gv('p_excl'), pGain=gv('p_gain'), pRet=gv('p_ret')/100, pAge=gv('p_age');
+  const iCur=gv('i_cur'), iContrib=gv('i_contrib'), iYield=gv('i_yield')/100, iNav=gv('i_nav')/100;
+  const pExcl=gv('p_excl'), pGain=gv('p_gain'), pYield=gv('p_yield')/100, pNav=gv('p_nav')/100, pAge=gv('p_age'), pTax=gv('p_tax')/100;
+  // ISA와 연금은 yield=배당, nav=원금증감으로 분리 (총수익 = yield + nav)
+  const iRet=iYield+iNav, pRet=pYield+pNav;
   const extraM=gv('extra_m'), extraYrs=gv('extra_yrs');
   const exp=gv('exp'), nps=gv('nps'), npsAge=gv('nps_age');
   const house=gv('house'), car=gv('car'), carYr=gv('car_yr');
 
   // 월 분배금 자동계산
   const gDist=Math.round(gP*gYield/12);
-  const distEl=document.getElementById('g_dist_display');
-  if(distEl) distEl.textContent=fmtN(gDist)+'만원';
+  const iDist=Math.round(iCur*iYield/12);
+  const pExclDist=Math.round(pExcl*pYield/12);
+  const pGainDist=Math.round(pGain*pYield/12);
+  const pDistTotal=pExclDist+pGainDist;
+  const el_g=document.getElementById('g_dist_display');if(el_g)el_g.textContent=fmtN(gDist)+'만원';
+  const el_i=document.getElementById('i_dist_display');if(el_i)el_i.textContent=fmtN(iDist)+'만원 (내부 비과세)';
+  const el_p=document.getElementById('p_dist_display');if(el_p)el_p.textContent=fmtN(pDistTotal)+'만원';
 
   // 현재 총 자산
   const totalNow=gP+iCur+pExcl+pGain;
   document.getElementById('totalAssetNow').textContent=fmtW(totalNow)+'원';
+  const totalDivM=gDist+iDist+pDistTotal;
   document.getElementById('totalAssetBreak').innerHTML=
-    `<span style="color:var(--acc)">일반 ${fmtM(gP)}</span> + <span style="color:var(--grn)">ISA ${fmtM(iCur)}</span> + <span style="color:var(--blu)">연금 ${fmtM(pExcl+pGain)}</span>`;
+    `<span style="color:var(--acc)">일반 ${fmtM(gP)}</span> + <span style="color:var(--grn)">ISA ${fmtM(iCur)}</span> + <span style="color:var(--blu)">연금 ${fmtM(pExcl+pGain)}</span>`
+    +`<div style="margin-top:8px;font-size:12px;color:var(--acc)">월 분배금 합계 <strong>${fmtN(totalDivM)}만원</strong></div>`;
 
   // 건보료 (금융소득 기준)
   const npsNow=curAge>=npsAge?nps:0;
@@ -619,10 +643,10 @@ function runSim(){
   const ins=calcIns(annInc,house,car,carYr);
   const insM=ins.total; // 만원
 
-  // 수입/지출
-  const gNet=gDist; // 세금 0%
-  const pWithdrawM=Math.max(0,exp+insM-(gNet+npsNow)); // 연금저축 과세제외 인출
-  const totalInc=gNet+pWithdrawM+npsNow;
+  // 수입/지출 (3계좌 분배금 합산)
+  const allDivM=gDist+iDist+pDistTotal;
+  const pWithdrawM=Math.max(0,exp+insM-(allDivM+npsNow)); // 부족분만 과세제외 인출
+  const totalInc=allDivM+pWithdrawM+npsNow;
   const surplus=totalInc-exp-insM;
 
   // 건보료 경고
@@ -635,13 +659,15 @@ function runSim(){
   document.getElementById('summaryCards').innerHTML=`
     <div class="res-card"><div class="res-val" style="color:var(--acc)">${fmtM(totalNow)}원</div><div class="res-lbl">현재 총 자산</div></div>
     <div class="res-card"><div class="res-val" style="color:${surplus>=0?'var(--grn)':'var(--red)'}">${surplus>=0?'+':''}${fmtM(Math.round(surplus))}원</div><div class="res-lbl">월 순 잉여금</div></div>
-    <div class="res-card"><div class="res-val" style="color:var(--acc);font-size:18px">${fmtN(gDist)}만원</div><div class="res-lbl">① 월 분배금 (세금 0%)</div></div>
+    <div class="res-card"><div class="res-val" style="color:var(--acc);font-size:18px">${fmtN(totalDivM)}만원</div><div class="res-lbl">3계좌 월 분배금 합계<br><span style="font-size:9px;color:var(--mut2)">일 ${fmtN(gDist)} ISA ${fmtN(iDist)} 연 ${fmtN(pDistTotal)}</span></div></div>
     <div class="res-card"><div class="res-val" style="color:var(--mut2);font-size:18px">${fmtM(Math.round(insM*10)/10)}원</div><div class="res-lbl">건보료 (월)</div></div>
   `;
 
   // 현금흐름
   document.getElementById('cfRows').innerHTML=`
-    <div class="cf-row"><span class="cf-k">① 일반계좌 분배금 (세금 0%)</span><span class="cf-v" style="color:var(--acc)">+${fmtM(gNet)}원</span></div>
+    <div class="cf-row"><span class="cf-k">① 일반계좌 분배금 (세금 0%)</span><span class="cf-v" style="color:var(--acc)">+${fmtM(gDist)}원</span></div>
+    <div class="cf-row"><span class="cf-k">② ISA 분배금 (내부 비과세)</span><span class="cf-v" style="color:var(--grn)">+${fmtM(iDist)}원</span></div>
+    <div class="cf-row"><span class="cf-k">③ 연금저축 분배금</span><span class="cf-v" style="color:var(--blu)">+${fmtM(pDistTotal)}원</span></div>
     <div class="cf-row"><span class="cf-k">③ 연금저축 과세제외 인출 (세금 0%)</span><span class="cf-v" style="color:var(--blu)">${pWithdrawM>0?'+'+fmtM(Math.round(pWithdrawM))+'원':'인출 불필요'}</span></div>
     <div class="cf-row"><span class="cf-k">국민연금</span><span class="cf-v">${npsNow>0?'+'+npsNow+'만원':'수령 전'}</span></div>
     <div class="cf-row"><span class="cf-k">월 생활비</span><span class="cf-v" style="color:var(--red)">-${fmtM(exp)}원</span></div>
@@ -777,7 +803,7 @@ function drawChart(res){
 }
 
 // 저장/불러오기
-const SIM_INPUTS=['g_p','g_yield','g_nav','g_fin_inc','i_cur','i_contrib','i_ret','p_excl','p_gain','p_ret','p_age','extra_m','extra_yrs','exp','nps','nps_age','house','car','car_yr','exp_food','exp_mgmt','exp_loan','exp_tel','exp_car','exp_leisure','exp_med','exp_etc'];
+const SIM_INPUTS=['g_p','g_yield','g_nav','g_fin_inc','i_cur','i_contrib','i_yield','i_nav','p_excl','p_gain','p_yield','p_nav','p_age','p_tax','extra_m','extra_yrs','exp','nps','nps_age','house','car','car_yr','exp_food','exp_mgmt','exp_loan','exp_tel','exp_car','exp_leisure','exp_med','exp_etc'];
 const SIM_KEY='life_sim_v2';
 function saveInputs(){
   const data={};
