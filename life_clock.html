@@ -874,9 +874,18 @@ function drawChart(rows){
   const cv = document.getElementById('dLine');
   if(!cv) return;
   const dpr = window.devicePixelRatio || 1;
-  // 좌우 여백을 고려한 캔버스 너비 조정
-  const W = cv.parentElement.clientWidth - 28;
+  
+  // 💡 수정된 부분: 탭이 숨겨져 있어 부모 너비가 0으로 잡히는 버그 방지
+  let parentW = cv.parentElement.clientWidth;
+  if (parentW === 0) {
+    // 탭이 숨겨져 있을 때는 화면 너비(최대 390px)에서 페이지 양옆 여백(56px)을 빼서 강제 계산
+    parentW = Math.min(window.innerWidth, 390) - 56;
+  }
+  
+  // 차트 박스 내부 좌우 패딩(28px)을 뺀 최종 캔버스 너비
+  const W = Math.max(parentW - 28, 200); // 최소 200px 방어 로직 추가
   const H = 260; 
+  
   cv.style.width = W + 'px';
   cv.style.height = H + 'px';
   cv.width = W * dpr;
@@ -885,7 +894,7 @@ function drawChart(rows){
   ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, W, H);
 
-  // 상하좌우 여백(Padding) 넉넉하게 확보 (글자 잘림 완벽 방지)
+  // 상하좌우 여백(Padding) 넉넉하게 확보
   const pad = {t: 20, r: 20, b: 30, l: 50}; 
   const cw = W - pad.l - pad.r;
   const ch = H - pad.t - pad.b;
@@ -926,7 +935,7 @@ function drawChart(rows){
     ctx.fillText(fmtY(val), pad.l - 8, y);
   });
 
-  // 총 자산 (면적 그라데이션) - 복잡한 스택을 없애고 직관적인 단일 영역으로 변경
+  // 총 자산 (면적 그라데이션)
   const grad = ctx.createLinearGradient(0, pad.t, 0, pad.t + ch);
   grad.addColorStop(0, 'rgba(196, 168, 120, 0.4)');
   grad.addColorStop(1, 'rgba(196, 168, 120, 0.02)');
@@ -956,7 +965,7 @@ function drawChart(rows){
   ctx.textBaseline = 'top';
 
   rows.forEach((r, i) => {
-    // 5년 단위 또는 처음/마지막 연도만 표시하여 텍스트 겹침 완벽 방지
+    // 5년 단위 또는 처음/마지막 연도만 표시하여 텍스트 겹침 방지
     if (r.age % 5 === 0 || i === 0 || i === rows.length - 1) {
       
       let labelX = tx(i);
