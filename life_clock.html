@@ -871,99 +871,114 @@ function renderTable(rows, isaCycle, curAge, npsAge){
 }
 
 function drawChart(rows){
-  const cv=document.getElementById('dLine');
-  if(!cv)return;
-  const dpr=window.devicePixelRatio||1;
-  const W=cv.parentElement.clientWidth-28;
-  const H=260; // 높이 확대
-  cv.style.width=W+'px';cv.style.height=H+'px';
-  cv.width=W*dpr;cv.height=H*dpr;
-  const ctx=cv.getContext('2d');ctx.scale(dpr,dpr);ctx.clearRect(0,0,W,H);
+  const cv = document.getElementById('dLine');
+  if(!cv) return;
+  const dpr = window.devicePixelRatio || 1;
+  // 좌우 여백을 고려한 캔버스 너비 조정
+  const W = cv.parentElement.clientWidth - 28;
+  const H = 260; 
+  cv.style.width = W + 'px';
+  cv.style.height = H + 'px';
+  cv.width = W * dpr;
+  cv.height = H * dpr;
+  const ctx = cv.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
 
-  // 범례를 아래로 이동 → 상단 여백 줄이기
-  const LEGEND_H=28;
-  const pad={t:8,r:8,b:36,l:46};
-  const cw=W-pad.l-pad.r, ch=H-pad.t-pad.b-LEGEND_H;
+  // 상하좌우 여백(Padding) 넉넉하게 확보 (글자 잘림 완벽 방지)
+  const pad = {t: 20, r: 20, b: 30, l: 50}; 
+  const cw = W - pad.l - pad.r;
+  const ch = H - pad.t - pad.b;
 
-  const maxV=Math.max(...rows.map(r=>r.total))*1.08||1;
-  const tx=i=>pad.l+(i/(rows.length-1))*cw;
-  const ty=v=>pad.t+ch-(v/maxV)*ch;
+  const maxV = Math.max(...rows.map(r => r.total)) * 1.1 || 1;
+  const tx = i => pad.l + (i / (rows.length - 1)) * cw;
+  const ty = v => pad.t + ch - (v / maxV) * ch;
 
-  // Y축 레이블 (억 단위 깔끔하게)
-  const fmtY=v=>{
-    if(v===0)return '0';
-    if(v>=100000000)return (v/100000000).toFixed(0)+'억';
-    if(v>=10000)return (v/10000).toFixed(0)+'억';
+  // Y축 금액 포맷 (억 단위로 깔끔하게 떨어지도록, 소수점 1자리)
+  const fmtY = v => {
+    if(v === 0) return '0';
+    if(v >= 100000000) return parseFloat((v / 100000000).toFixed(1)) + '억';
+    if(v >= 10000) return parseFloat((v / 10000).toFixed(1)) + '억';
     return '';
   };
 
-  // 격자선 5개
-  [0,.25,.5,.75,1].forEach(f=>{
-    const y=pad.t+ch*f;
-    const val=maxV*(1-f);
-    // 격자
-    ctx.strokeStyle='rgba(255,255,255,0.06)';ctx.lineWidth=.5;
-    ctx.setLineDash([3,4]);
-    ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+cw,y);ctx.stroke();
+  // 배경 가로 격자선 및 Y축 레이블 그리기
+  ctx.fillStyle = 'rgba(180, 175, 168, 0.8)';
+  ctx.font = '10px "Noto Serif KR", serif';
+  ctx.textBaseline = 'middle';
+
+  [0, 0.25, 0.5, 0.75, 1].forEach(f => {
+    const y = pad.t + ch * f;
+    const val = maxV * (1 - f);
+    
+    // 점선 격자 그리기
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(pad.l, y);
+    ctx.lineTo(pad.l + cw, y);
+    ctx.stroke();
     ctx.setLineDash([]);
-    // Y축 레이블
-    ctx.fillStyle='rgba(180,175,168,.7)';
-    ctx.font=`bold 9px DM Mono`;ctx.textAlign='right';
-    ctx.fillText(fmtY(val),pad.l-5,y+3.5);
+    
+    // Y축 텍스트 (왼쪽 정렬)
+    ctx.textAlign = 'right';
+    ctx.fillText(fmtY(val), pad.l - 8, y);
   });
 
-  // 스택 영역
-  const layers=[
-    {key:'aPG',color:'rgba(169,143,212,.45)'},
-    {key:'aPE',color:'rgba(122,158,196,.3)'},
-    {key:'aI', color:'rgba(109,184,124,.38)'},
-    {key:'aG', color:'rgba(196,168,120,.42)'},
-  ];
-  for(let li=layers.length-1;li>=0;li--){
-    const top=rows.map(r=>{let s=0;for(let k=0;k<=li;k++)s+=r[layers[k].key];return s;});
-    const bot=li===layers.length-1?rows.map(()=>0):rows.map((r,ri)=>top[ri]-r[layers[li].key]);
-    ctx.beginPath();
-    top.forEach((_,i)=>i===0?ctx.moveTo(tx(i),ty(top[i])):ctx.lineTo(tx(i),ty(top[i])));
-    [...top.keys()].reverse().forEach(i=>ctx.lineTo(tx(i),ty(bot[i])));
-    ctx.closePath();ctx.fillStyle=layers[li].color;ctx.fill();
-  }
+  // 총 자산 (면적 그라데이션) - 복잡한 스택을 없애고 직관적인 단일 영역으로 변경
+  const grad = ctx.createLinearGradient(0, pad.t, 0, pad.t + ch);
+  grad.addColorStop(0, 'rgba(196, 168, 120, 0.4)');
+  grad.addColorStop(1, 'rgba(196, 168, 120, 0.02)');
 
-  // 총합 라인
-  ctx.beginPath();ctx.strokeStyle='#c4a878';ctx.lineWidth=2.5;ctx.lineJoin='round';
-  rows.forEach((r,i)=>i===0?ctx.moveTo(tx(i),ty(r.total)):ctx.lineTo(tx(i),ty(r.total)));
+  ctx.beginPath();
+  ctx.moveTo(tx(0), pad.t + ch);
+  rows.forEach((r, i) => ctx.lineTo(tx(i), ty(r.total)));
+  ctx.lineTo(tx(rows.length - 1), pad.t + ch);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // 총 자산 (메인 곡선)
+  ctx.beginPath();
+  ctx.strokeStyle = '#c4a878'; // 메인 골드 컬러
+  ctx.lineWidth = 3;
+  ctx.lineJoin = 'round';
+  rows.forEach((r, i) => {
+    if (i === 0) ctx.moveTo(tx(i), ty(r.total));
+    else ctx.lineTo(tx(i), ty(r.total));
+  });
   ctx.stroke();
 
-  // X축 나이 레이블 — 5년 단위, 겹침 방지
-  rows.forEach((r,i)=>{
-    if(r.age%5===0){
-      // 수직 점선
-      ctx.strokeStyle='rgba(255,255,255,0.08)';ctx.lineWidth=.5;ctx.setLineDash([2,3]);
-      ctx.beginPath();ctx.moveTo(tx(i),pad.t);ctx.lineTo(tx(i),pad.t+ch);ctx.stroke();
-      ctx.setLineDash([]);
-      // 레이블
-      ctx.fillStyle='rgba(180,175,168,.75)';
-      ctx.font='bold 9px DM Mono';ctx.textAlign='center';
-      ctx.fillText(r.age+'세',tx(i),pad.t+ch+16);
-    }
-  });
+  // X축 (나이) 레이블 및 눈금 그리기
+  ctx.fillStyle = 'rgba(180, 175, 168, 0.8)';
+  ctx.font = '10px "Noto Serif KR", serif';
+  ctx.textBaseline = 'top';
 
-  // 범례 — 차트 아래 중앙 배치
-  const legend=[
-    {c:'rgba(196,168,120,.95)',l:'일반계좌'},
-    {c:'rgba(109,184,124,.9)',l:'ISA'},
-    {c:'rgba(122,158,196,.85)',l:'연금원금'},
-    {c:'rgba(169,143,212,.9)',l:'연금수익'}
-  ];
-  const legendY=pad.t+ch+LEGEND_H+10;
-  const totalLegendW=legend.reduce((s,lg)=>s+9+ctx.measureText(lg.l).width+16,0)-16;
-  let lx=(W-totalLegendW)/2;
-  legend.forEach(lg=>{
-    ctx.fillStyle=lg.c;
-    ctx.beginPath();ctx.arc(lx+4,legendY-3.5,4.5,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle='rgba(190,185,178,.8)';
-    ctx.font='9.5px Noto Serif KR';ctx.textAlign='left';
-    ctx.fillText(lg.l,lx+11,legendY);
-    lx+=11+ctx.measureText(lg.l).width+16;
+  rows.forEach((r, i) => {
+    // 5년 단위 또는 처음/마지막 연도만 표시하여 텍스트 겹침 완벽 방지
+    if (r.age % 5 === 0 || i === 0 || i === rows.length - 1) {
+      
+      let labelX = tx(i);
+      // 양 끝 텍스트가 화면 밖으로 나가지 않도록 지능형 정렬
+      if (i === 0) {
+        ctx.textAlign = 'left';
+      } else if (i === rows.length - 1) {
+        ctx.textAlign = 'right';
+      } else {
+        ctx.textAlign = 'center';
+      }
+      
+      ctx.fillText(r.age + '세', labelX, pad.t + ch + 8);
+      
+      // 눈금(틱) 그리기
+      ctx.beginPath();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+      ctx.lineWidth = 1;
+      ctx.moveTo(tx(i), pad.t + ch);
+      ctx.lineTo(tx(i), pad.t + ch + 4);
+      ctx.stroke();
+    }
   });
 }
 
