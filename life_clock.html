@@ -813,7 +813,8 @@ function runSim(){
       y, age, aG:Math.round(aG), aI:Math.round(aI),
       aPE:Math.round(aPE), aPG:Math.round(aPG), total:Math.round(total),
       expY:Math.round(expY), surplusY:Math.round(surplusY),
-      isaTransfer:Math.round(isaTransfer)
+      isaTransfer:Math.round(isaTransfer),
+      gDistY:Math.round(gDistY)
     });
   }
 
@@ -842,7 +843,7 @@ function renderTable(rows, isaCycle, curAge, npsAge){
   if(!el)return;
   let html=`<div class="tbl-scroll"><table class="ytbl">
     <thead><tr>
-      <th>나이</th><th>생활비(연)</th><th>일반계좌</th><th>ISA</th><th>연금(원금)</th><th>연금(수익)</th><th>총 자산</th><th>비고</th>
+      <th>나이</th><th>연 분배금</th><th>생활비(연)</th><th>잉여금(연)</th><th>일반계좌</th><th>ISA</th><th>연금(원금)</th><th>연금(수익)</th><th>총 자산</th><th>비고</th>
     </tr></thead><tbody>`;
   rows.forEach(r=>{
     const isISAYear=r.y%isaCycle===0;
@@ -851,9 +852,12 @@ function renderTable(rows, isaCycle, curAge, npsAge){
     if(isISAYear)note.push(`ISA→연금 ${fmtM(r.isaTransfer)}`);
     if(isNPS)note.push('국민연금 개시');
     if(r.age===gv('p_age'))note.push('연금 개시 연령');
+    const surpColor=r.surplusY>=0?'var(--grn)':'var(--red)';
     html+=`<tr class="${isISAYear?'isa-row':''}">
       <td>${r.age}세</td>
+      <td style="color:var(--acc);font-weight:500">${fmtM(r.gDistY)}</td>
       <td style="color:var(--red)">${fmtM(r.expY)}</td>
+      <td style="color:${surpColor}">${r.surplusY>=0?'+':''}${fmtM(r.surplusY)}</td>
       <td style="color:var(--acc)">${fmtM(r.aG)}</td>
       <td style="color:var(--grn)">${fmtM(r.aI)}</td>
       <td style="color:var(--blu)">${fmtM(r.aPE)}</td>
