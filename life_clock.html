@@ -889,7 +889,7 @@ function drawChart(rows){
   ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, W, H);
 
-  // 상단 범례(Legend) 공간을 위해 위쪽(t) 여백을 30으로 증가
+  // 상단 범례 공간을 위한 위쪽 여백 조정
   const pad = {t: 30, r: 20, b: 30, l: 50}; 
   const cw = W - pad.l - pad.r;
   const ch = H - pad.t - pad.b;
@@ -898,6 +898,7 @@ function drawChart(rows){
   const tx = i => pad.l + (i / (rows.length - 1)) * cw;
   const ty = v => pad.t + ch - (v / maxV) * ch;
 
+  // Y축 금액 포맷
   const fmtY = v => {
     if(v === 0) return '0';
     if(v >= 100000000) return parseFloat((v / 100000000).toFixed(1)) + '억';
@@ -925,36 +926,29 @@ function drawChart(rows){
     ctx.fillText(fmtY(val), pad.l - 8, y);
   });
 
-  // 💡 레이어 그리기 헬퍼 함수
-  const drawLayer = (color, valueFn) => {
+  // 💡 선 그리기 헬퍼 함수
+  const drawLine = (color, valueFn) => {
     ctx.beginPath();
-    ctx.moveTo(tx(0), pad.t + ch);
-    rows.forEach((r, i) => ctx.lineTo(tx(i), ty(valueFn(r))));
-    ctx.lineTo(tx(rows.length - 1), pad.t + ch);
-    ctx.closePath();
-    ctx.fillStyle = color;
-    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.5; 
+    ctx.lineJoin = 'round';
+    rows.forEach((r, i) => {
+      const y = ty(valueFn(r));
+      if (i === 0) ctx.moveTo(tx(i), y);
+      else ctx.lineTo(tx(i), y);
+    });
+    ctx.stroke();
   };
 
-  // 1. 하단: 연금저축 (원금+수익) - 블루 톤
-  drawLayer('rgba(122, 158, 196, 0.25)', r => r.aPE + r.aPG);
-  // 2. 중단: ISA (연금 + ISA) - 그린 톤
-  drawLayer('rgba(109, 184, 124, 0.25)', r => r.aPE + r.aPG + r.aI);
-  // 3. 상단: 일반계좌 (전체 총합) - 골드 톤
-  drawLayer('rgba(196, 168, 120, 0.25)', r => r.total);
+  // 1. 연금계좌 추이: 블루 (Legend와 매칭)
+  drawLine('rgba(122, 158, 196, 0.8)', r => r.aPE + r.aPG);
+  // 2. ISA 계좌 추이: 그린 (Legend와 매칭)
+  drawLine('rgba(109, 184, 124, 0.8)', r => r.aI);
+  // 3. 일반계좌 추이: 골드 (Legend와 매칭)
+  // *💡수정: 총 자산이 아닌, 일반계좌 자체의 추이를 계산해서 그림*
+  drawLine('rgba(196, 168, 120, 0.8)', r => r.total - (r.aI + r.aPE + r.aPG));
 
-  // 총 자산 (메인 곡선 테두리)
-  ctx.beginPath();
-  ctx.strokeStyle = '#c4a878'; 
-  ctx.lineWidth = 2.5;
-  ctx.lineJoin = 'round';
-  rows.forEach((r, i) => {
-    if (i === 0) ctx.moveTo(tx(i), ty(r.total));
-    else ctx.lineTo(tx(i), ty(r.total));
-  });
-  ctx.stroke();
-
-  // 💡 미니 범례(Legend) 표시 (그래프 좌상단)
+  // 미니 범례(Legend) 표시 (그래프 좌상단)
   const legY = pad.t - 15;
   ctx.font = '9px "Noto Serif KR", serif';
   ctx.textAlign = 'left';
@@ -980,11 +974,9 @@ function drawChart(rows){
 
   const drawX = [];
   rows.forEach((r, i) => {
-    // 무조건 그리는 위치: 시작 연도와 끝 연도
     if (i === 0 || i === rows.length - 1) {
       drawX.push(i);
     } else if (r.age % 5 === 0) {
-      // 💡 겹침 방지 로직: 5단위 나이더라도 처음과 끝에서 2년 이내로 너무 가까우면 생략
       if (i > 2 && (rows.length - 1 - i) > 2) {
         drawX.push(i);
       }
