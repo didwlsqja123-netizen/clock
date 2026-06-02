@@ -300,6 +300,11 @@ canvas{width:100%;display:block}
     <h2 class="sim-ttl">3단계 절세 시뮬레이터</h2>
   </div>
 
+  <div class="inp-box" style="max-width:160px">
+    <div class="inp-lbl">FIRE 나이<span class="hint">시뮬레이션 시작 나이</span></div>
+    <div class="inp-wrap"><input class="inp-num sim-inp" id="cur_age" type="number" value="45" min="20" max="80"/><span class="inp-unit">세</span></div>
+  </div>
+
   <div class="total-asset-box">
     <div class="ta-label">현재 총 자산</div>
     <div class="ta-value" id="totalAssetNow">—</div>
@@ -646,7 +651,7 @@ function updateExpSum(){
 }
 
 function runSim(){
-  const curAge=32;
+  const curAge=gv('cur_age')||45;
   const gP=gv('g_p'), gYield=gv('g_yield')/100, gNav=gv('g_nav')/100, gFinInc=gv('g_fin_inc');
   const iCur=gv('i_cur'), iContrib=gv('i_contrib');
   const iCcPct=gv('i_cc_pct')/100, iCcYield=gv('i_cc_yield')/100;
@@ -678,7 +683,7 @@ function runSim(){
   if(pBlendEl)pBlendEl.textContent=(pBlend*100).toFixed(1)+'% (커버드콜 '+Math.round(pCcPct*100)+'% + 액티브 '+Math.round(pActPct*100)+'%)';
 
   // ISA 만기 예상 전환액
-  const isaTransferPreview=iCur*(1+iRet)**isaCycle + iContrib*((1+iRet)**isaCycle-1)/iRet;
+  const isaTransferPreview=iCur*(1+iRet)**isaCycle + iContrib*((1+iRet)**isaCycle-1)/iRet*(1+iRet);
   const iTransEl=document.getElementById('i_transfer_display');
   if(iTransEl)iTransEl.textContent=fmtW(Math.round(isaTransferPreview))+'원 ('+isaCycle+'년 후)';
 
@@ -792,10 +797,10 @@ function runSim(){
     }
 
     // ③ 연금저축
-    // 내부 수익은 전액 '수익분(aPG)'으로 누적시키고, 부족분 인출은 '원금(aPE)'에서 진행
-    const totalPEarn = (aPE + aPG) * pRet; // 당해 연도 전체 연금계좌 운용 수익
+    // 연중 인출 가정: 인출액의 절반만 수익 계산에서 제외 (연초~연말 사이 균등 인출 근사)
+    const totalPEarn = (aPE + aPG - pWdY / 2) * pRet;
     aPG += totalPEarn; // 발생한 수익은 모두 수익분으로 분리 적립
-    
+
     aPE -= pWdY; // 생활비 부족분은 과세제외원금(세금 0원)에서 우선 인출
     if(aPE < 0) { 
       // 과세제외원금 고갈 시 수익분에서 인출
@@ -1000,7 +1005,7 @@ function drawChart(rows){
   });
 }
 
-const SIM_INPUTS=['g_p','g_yield','g_nav','g_fin_inc','i_cur','i_contrib','i_cc_pct','i_cc_yield','i_act_ret','i_cycle','p_excl','p_gain','p_cc_pct','p_cc_yield','p_act_ret','p_age','p_tax','extra_m','extra_yrs','exp','inf_rate','nps','nps_age','house','car','car_yr','exp_food','exp_mgmt','exp_loan','exp_tel','exp_car','exp_leisure','exp_med','exp_etc'];
+const SIM_INPUTS=['cur_age','g_p','g_yield','g_nav','g_fin_inc','i_cur','i_contrib','i_cc_pct','i_cc_yield','i_act_ret','i_cycle','p_excl','p_gain','p_cc_pct','p_cc_yield','p_act_ret','p_age','p_tax','extra_m','extra_yrs','exp','inf_rate','nps','nps_age','house','car','car_yr','exp_food','exp_mgmt','exp_loan','exp_tel','exp_car','exp_leisure','exp_med','exp_etc'];
 const SIM_KEY='life_sim_v2';
 function saveInputs(){
   const data={};
