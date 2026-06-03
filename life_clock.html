@@ -767,7 +767,7 @@ function runSim(){
     const gEarnY = aG * (gYield + gNav); // 일반계좌: 배당금 + 원금(NAV) 상승분
     const iEarnY = aI * iRet;            // ISA: 내부 복리 수익
     const pEarnY = (aPE + aPG) * pRet;   // 연금저축: 원금과 수익분에 붙은 복리 수익
-    const totalEarnY = gEarnY + iEarnY + pEarnY; // ★ 당해 연도 총 투자수익
+    let totalEarnY = gEarnY + iEarnY + pEarnY; // ★ let으로 변경 (세금 차감을 위해)
 
     // ① 일반계좌
     const gDistY=aG*gYield;            
@@ -787,19 +787,21 @@ function runSim(){
 
     // ② ISA: 납입 + 전체 내부 복리 (9.9% 분리과세 적용)
     aI = aI * (1 + iRet) + iContrib;
-    iCyclePrin += iContrib; // 매년 납입원금 누적
+    iCyclePrin += iContrib; 
     let isaTransfer = 0;
     
     if(y % isaCycle === 0) {
-      const iProfit = Math.max(0, aI - iCyclePrin); // 만기 수익금 산출
-      const taxableProfit = Math.max(0, iProfit - 200); // 200만원 비과세 공제
-      const iTax = taxableProfit * 0.099; // 초과분 9.9% 세금
+      const iProfit = Math.max(0, aI - iCyclePrin); 
+      const taxableProfit = Math.max(0, iProfit - 200); 
+      const iTax = taxableProfit * 0.099; 
       
-      isaTransfer = aI - iTax; // 세후 실수령액 (최종 이전액)
-      aPE += isaTransfer; // 과세제외원금으로 100% 편입
+      isaTransfer = aI - iTax; 
+      aPE += isaTransfer; 
       
+      totalEarnY -= iTax; // 💡 [수정됨] 만기 연도에 납부한 ISA 세금을 당해 연도 총 수익에서 차감!
+
       aI = 0;   
-      iCyclePrin = 0; // 다음 사이클을 위해 원금 초기화
+      iCyclePrin = 0; 
     }
 
     // ③ 연금저축
