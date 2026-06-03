@@ -749,7 +749,7 @@ function runSim(){
   }
 
   // ===== 연도별 자산 시뮬레이션 =====
-  const years=30;
+  const years = Math.max(1, 85 - curAge);
   const rows=[];
   let aG=gP, aI=iCur, aPE=pExcl, aPG=pGain;
   let iCyclePrin = iCur; // 💡 추가: ISA 사이클별 원금 추적용
@@ -824,7 +824,7 @@ function runSim(){
   }
 
   const finalTotal=rows[rows.length-1].total;
-  document.getElementById('chartTtl').textContent=`총 자산 추이 (30년 후 → ${fmtW(finalTotal)}원)`;
+  document.getElementById('chartTtl').textContent=`총 자산 추이 (${curAge}세→85세 · ${fmtW(finalTotal)}원)`;
   drawChart(rows);
 
   // 연도별 테이블
@@ -906,9 +906,9 @@ function drawChart(rows){
   // Y축 금액 포맷
   const fmtY = v => {
     if(v === 0) return '0';
-    if(v >= 100000000) return parseFloat((v / 100000000).toFixed(1)) + '억';
     if(v >= 10000) return parseFloat((v / 10000).toFixed(1)) + '억';
-    return '';
+    if(v >= 1000) return parseFloat((v / 1000).toFixed(1)) + '천만';
+    return fmtN(v) + '만';
   };
 
   // 배경 가로 격자선 및 Y축 레이블
