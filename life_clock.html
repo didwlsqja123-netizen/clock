@@ -763,6 +763,12 @@ function runSim(){
     // 물가상승률 반영된 당해 연도 생활비
     const expY=exp*12*Math.pow(1+infRate, y-1);
 
+    // 💡 [핵심 추가] 3개 계좌 당해 연도 총 투자 수익 산출
+    const gEarnY = aG * (gYield + gNav); // 일반계좌: 배당금 + 원금(NAV) 상승분
+    const iEarnY = aI * iRet;            // ISA: 내부 복리 수익
+    const pEarnY = (aPE + aPG) * pRet;   // 연금저축: 원금과 수익분에 붙은 복리 수익
+    const totalEarnY = gEarnY + iEarnY + pEarnY; // ★ 당해 연도 총 투자수익
+
     // ① 일반계좌
     const gDistY=aG*gYield;            
     const cashIn=gDistY+npsY;
@@ -819,7 +825,8 @@ function runSim(){
       aPE:Math.round(aPE), aPG:Math.round(aPG), total:Math.round(total),
       expY:Math.round(expY), surplusY:Math.round(surplusY),
       isaTransfer:Math.round(isaTransfer),
-      gDistY:Math.round(gDistY)
+      gDistY:Math.round(gDistY),
+      totalEarnY:Math.round(totalEarnY) // 💡 산출된 총 수익을 테이블 전달용 데이터에 추가
     });
   }
 
@@ -848,8 +855,9 @@ function renderTable(rows, isaCycle, curAge, npsAge){
   if(!el)return;
   let html=`<div class="tbl-scroll"><table class="ytbl">
     <thead><tr>
-      <th>나이</th><th>연 분배금</th><th>생활비(연)</th><th>잉여금(연)</th><th>일반계좌</th><th>ISA</th><th>연금(원금)</th><th>연금(수익)</th><th>총 자산</th><th>비고</th>
+      <th>나이</th><th>총 수익(당해)</th><th>연 분배금</th><th>생활비(연)</th><th>잉여금(연)</th><th>일반계좌</th><th>ISA</th><th>연금(원금)</th><th>연금(수익)</th><th>총 자산</th><th>비고</th>
     </tr></thead><tbody>`;
+  
   rows.forEach(r=>{
     const isISAYear=r.y%isaCycle===0;
     const isNPS=r.age===npsAge;
@@ -858,8 +866,10 @@ function renderTable(rows, isaCycle, curAge, npsAge){
     if(isNPS)note.push('국민연금 개시');
     if(r.age===gv('p_age'))note.push('연금 개시 연령');
     const surpColor=r.surplusY>=0?'var(--grn)':'var(--red)';
+    
     html+=`<tr class="${isISAYear?'isa-row':''}">
       <td>${r.age}세</td>
+      <td style="color:var(--pur);font-weight:600">+${fmtM(r.totalEarnY)}</td>
       <td style="color:var(--acc);font-weight:500">${fmtM(r.gDistY)}</td>
       <td style="color:var(--red)">${fmtM(r.expY)}</td>
       <td style="color:${surpColor}">${r.surplusY>=0?'+':''}${fmtM(r.surplusY)}</td>
