@@ -752,30 +752,23 @@ function runSim(){
   const years = Math.max(1, 85 - curAge);
   const rows=[];
   let aG=gP, aI=iCur, aPE=pExcl, aPG=pGain;
-  let iCyclePrin = iCur; // 💡 추가: ISA 사이클별 원금 추적용
+  let iCyclePrin = iCur; // ISA 사이클별 원금 추적용
 
   for(let y=1;y<=years;y++){
     const age=curAge+y;
     const npsY=age>=npsAge?nps*12:0;
     const addY=(y<=extraYrs?extraM:0)*12;
     const insY=insM*12;
-    
+
     // 물가상승률 반영된 당해 연도 생활비
     const expY=exp*12*Math.pow(1+infRate, y-1);
 
-    // 💡 [핵심 추가] 3개 계좌 당해 연도 총 투자 수익 산출
-    const gEarnY = aG * (gYield + gNav); // 일반계좌: 배당금 + 원금(NAV) 상승분
-    const iEarnY = aI * iRet;            // ISA: 내부 복리 수익
-    const pEarnY = (aPE + aPG) * pRet;   // 연금저축: 원금과 수익분에 붙은 복리 수익
-    let totalEarnY = gEarnY + iEarnY + pEarnY; // ★ let으로 변경 (세금 차감을 위해)
-
-    // ① 일반계좌
-    const gDistY=aG*gYield;            
+    // ── STEP 1: 현금흐름 및 생활비 부족분 산출 ──
+    const gDistY=aG*gYield;
     const cashIn=gDistY+npsY;
     const cashOut=expY+insY;
     const surplusY=cashIn-cashOut;
-    
-    // 잉여금은 일반계좌에 재투자, 부족분은 연금저축에서 인출
+
     let reinvestY=0;
     let pWdY=0;
     if(surplusY >= 0){
@@ -783,42 +776,46 @@ function runSim(){
     } else {
       pWdY = Math.abs(surplusY);
     }
-    aG=aG*(1+gNav)+reinvestY+addY;
 
-    // ② ISA: 납입 + 전체 내부 복리 (9.9% 분리과세 적용)
+    // ── STEP 2: 각 계좌 당해 연도 순수 수익 계산 (자산 이동 전) ──
+    const gEarnY = aG * (gYield + gNav);               // 일반계좌: 배당 + NAV 상승
+    const iEarnY = aI * iRet;                           // ISA: 내부 복리 수익
+    const totalPEarn = (aPE + aPG - pWdY / 2) * pRet;  // 연금저축: 생활비 차감 정밀 반영
+    let totalEarnY = gEarnY + iEarnY + totalPEarn;      // 당해 총 수익 (지표·실제 일치)
+
+    // ── STEP 3: 자산 증감 적용 ──
+    // 일반계좌
+    aG = aG * (1 + gNav) + reinvestY + addY;
+
+    // ISA: 복리 누적 + 납입
     aI = aI * (1 + iRet) + iContrib;
-    iCyclePrin += iContrib; 
-    let isaTransfer = 0;
-    
-    if(y % isaCycle === 0) {
-      const iProfit = Math.max(0, aI - iCyclePrin); 
-      const taxableProfit = Math.max(0, iProfit - 200); 
-      const iTax = taxableProfit * 0.099; 
-      
-      isaTransfer = aI - iTax; 
-      aPE += isaTransfer; 
-      
-      totalEarnY -= iTax; // 💡 [수정됨] 만기 연도에 납부한 ISA 세금을 당해 연도 총 수익에서 차감!
+    iCyclePrin += iContrib;
 
-      aI = 0;   
-      iCyclePrin = 0; 
-    }
-
-    // ③ 연금저축
-    // 연중 인출 가정: 인출액의 절반만 수익 계산에서 제외 (연초~연말 사이 균등 인출 근사)
-    const totalPEarn = (aPE + aPG - pWdY / 2) * pRet;
-    aPG += totalPEarn; // 발생한 수익은 모두 수익분으로 분리 적립
-
-    aPE -= pWdY; // 생활비 부족분은 과세제외원금(세금 0원)에서 우선 인출
-    if(aPE < 0) { 
-      // 과세제외원금 고갈 시 수익분에서 인출
-      aPG += aPE; 
+    // 연금저축: 수익 누적 → 생활비 인출
+    aPG += totalPEarn;
+    aPE -= pWdY;
+    if(aPE < 0){
+      aPG += aPE; // 원금 고갈 시 수익분에서 충당
       aPE = 0;
     }
 
+    // ── STEP 4: ISA 연말 만기 정산 (수익 계산 완료 후 이체 → 중복 복리 원천 차단) ──
+    let isaTransfer = 0;
+    if(y % isaCycle === 0){
+      const iProfit = Math.max(0, aI - iCyclePrin);
+      const taxableProfit = Math.max(0, iProfit - 200);
+      const iTax = taxableProfit * 0.099;
+
+      isaTransfer = aI - iTax;
+      aPE += isaTransfer;   // 내년부터 연금 수익률 적용 (올해는 중복 없음)
+
+      totalEarnY -= iTax;   // 납부 세금을 당해 총 수익에서 차감
+      aI = 0;
+      iCyclePrin = 0;
+    }
+
     if(age>=pAge){
-      // 연금수령 나이 도달 시: 강제 인출 로직은 제거하고, 오직 모자란 돈만 빼 쓰도록 유지
-      // (필요 시 최소 수령액 로직을 여기에 추가할 수 있음)
+      // 연금수령 나이 도달 시: 오직 모자란 돈만 빼 쓰는 로직 유지
     }
 
     const total=aG+aI+aPE+aPG;
@@ -828,7 +825,7 @@ function runSim(){
       expY:Math.round(expY), surplusY:Math.round(surplusY),
       isaTransfer:Math.round(isaTransfer),
       gDistY:Math.round(gDistY),
-      totalEarnY:Math.round(totalEarnY) // 💡 산출된 총 수익을 테이블 전달용 데이터에 추가
+      totalEarnY:Math.round(totalEarnY)
     });
   }
 
