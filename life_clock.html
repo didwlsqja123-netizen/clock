@@ -795,8 +795,16 @@ function runSim(){
     aPG += totalPEarn;
     aPE -= pWdY;
     if(aPE < 0){
-      aPG += aPE; // 원금 고갈 시 수익분에서 충당
+      const shortfall = Math.abs(aPE); // 원금에서 충당하지 못한 부족분
       aPE = 0;
+      
+      if(age < pAge) {
+        // 연금수령 나이 이전 중도인출: 16.5% 기타소득세 패널티
+        aPG -= (shortfall / 0.835); 
+      } else {
+        // 연금수령 나이 이후: 입력한 연금소득세율(pTax) 적용
+        aPG -= (shortfall / (1 - pTax)); 
+      }
     }
 
     // ── STEP 4: ISA 연말 만기 정산 (수익 계산 완료 후 이체 → 중복 복리 원천 차단) ──
